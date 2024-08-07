@@ -81,6 +81,15 @@ class RegTile {
         print_tile(const_cast<DType*>(data_), layout_);
     }
 
+    template <typename Copy>
+    DEVICE void copy(RegTile& dst, Copy copy) const {
+        for (int i = 0; i < kRows; ++i) {
+            for (int j = 0; j < kCols; ++j) {
+                copy((*this)(i, j), dst(i, j));
+            }
+        }
+    }
+
   private:
     DType data_[kNumel];
     Layout layout_;
@@ -105,5 +114,72 @@ static HOST std::ostream& operator<<(std::ostream& out,
     detail::RegTilePrettyPrinter::print(out, tile);
     return out;
 }
+
+template <typename Element, typename RegTile, typename BaseType>
+struct CopyRegTile {
+    using DType = typename RegTile::DType;
+    static constexpr int kRows = RegTile::kRows;
+    static constexpr int kCols = RegTile::kCols;
+
+    DEVICE void operator()(const DType& src, BaseType& dst) const {
+#pragma unroll
+        for (int i = 0; i < kRows; ++i) {
+#pragma unroll
+            for (int j = 0; j < kCols; ++j) {
+                dst(i, j) = src(i, j);
+            }
+        }
+    }
+};
+
+template <typename Element, typename RegTile>
+struct CopyRegTile<Element, RegTile, BaseTileRowMajor<Element>> {
+    using DType = typename RegTile::DType;
+    static constexpr int kRows = RegTile::kRows;
+    static constexpr int kCols = RegTile::kCols;
+
+    DEVICE void operator()(const DType& src,
+                           BaseTileRowMajor<Element>& dst) const {
+#pragma unroll
+        for (int i = 0; i < kRows; ++i) {
+#pragma unroll
+            for (int j = 0; j < kCols; ++j) {
+                dst(i, j)(0, 0) = src(i, j)(0, 0);
+                dst(i, j)(0, 1) = src(i, j)(0, 1);
+                dst(i, j)(1, 0) = src(i, j)(1, 0);
+                dst(i, j)(1, 1) = src(i, j)(1, 1);
+                dst(i, j)(0, 2) = src(i, j)(0, 2);
+                dst(i, j)(0, 3) = src(i, j)(0, 3);
+                dst(i, j)(1, 2) = src(i, j)(1, 2);
+                dst(i, j)(1, 3) = src(i, j)(1, 3);
+            }
+        }
+    }
+};
+
+template <typename Element, typename RegTile>
+struct CopyRegTile<Element, RegTile, BaseTileColMajor<Element>> {
+    using DType = typename RegTile::DType;
+    static constexpr int kRows = RegTile::kRows;
+    static constexpr int kCols = RegTile::kCols;
+
+    DEVICE void operator()(const DType& src,
+                           BaseTileColMajor<Element>& dst) const {
+#pragma unroll
+        for (int i = 0; i < kRows; ++i) {
+#pragma unroll
+            for (int j = 0; j < kCols; ++j) {
+                dst(i, j)(0, 0) = src(i, j)(0, 0);
+                dst(i, j)(1, 0) = src(i, j)(1, 0);
+                dst(i, j)(2, 0) = src(i, j)(2, 0);
+                dst(i, j)(3, 0) = src(i, j)(3, 0);
+                dst(i, j)(0, 1) = src(i, j)(0, 1);
+                dst(i, j)(1, 1) = src(i, j)(1, 1);
+                dst(i, j)(2, 1) = src(i, j)(2, 1);
+                dst(i, j)(3, 1) = src(i, j)(3, 1);
+            }
+        }
+    }
+};
 
 }  // namespace tiledcuda::cell
